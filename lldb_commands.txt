@@ -1,0 +1,32 @@
+script
+import lldb
+
+def on_write(frame, bp_loc, extra_args, internal_dict):
+    fd = frame.FindRegister("x0").unsigned
+    buf = frame.FindRegister("x1").unsigned
+    count = frame.FindRegister("x2").unsigned
+    if fd == 11 and 1 <= count <= 64:
+        err = lldb.SBError()
+        data = frame.thread.process.ReadMemory(buf, count, err)
+        if err.Success():
+            hx = " ".join(f"{b:02x}" for b in data)
+            print(f"write(fd=11, {count}B): [{hx}]")
+    return False
+
+def on_read_ret(frame, bp_loc, extra_args, internal_dict):
+    # x0 has return value (bytes read) after the syscall
+    # But we break at entry, not return. Skip for now.
+    return False
+
+target = lldb.debugger.GetSelectedTarget()
+bp = target.BreakpointCreateByName("write")
+bp.SetScriptCallbackFunction("on_write")
+bp.SetAutoContinue(True)
+
+print("\n*** Attached! Move sliders in the Neewer app. ***")
+print("*** 8-byte writes to fd=11 will be logged here. ***")
+print("*** Press Ctrl+C then type 'detach' to exit cleanly. ***\n")
+
+DONE
+
+process continue
