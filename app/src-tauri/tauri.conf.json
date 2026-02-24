@@ -19,7 +19,7 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "width": 320,
-        "height": 420,
+        "height": 360,
         "resizable": false,
         "transparent": true
       }

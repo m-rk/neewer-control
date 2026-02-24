@@ -5,6 +5,11 @@ use crate::protocol;
 use crate::serial::SerialManager;
 
 #[tauri::command]
+pub fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
+#[tauri::command]
 pub fn list_ports() -> Vec<String> {
     serialport::available_ports()
         .unwrap_or_default()

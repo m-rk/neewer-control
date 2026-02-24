@@ -7,7 +7,7 @@
 
   const TEMP_MIN = 2900;
   const TEMP_MAX = 7000;
-  const TEMP_STEP = Math.round((TEMP_MAX - TEMP_MIN) / 18);
+  const TEMP_STEP = 205; // divides evenly into 4100 (20 steps)
   const BRI_STEP = 5;
 
   let brightness = $state(100);
@@ -101,6 +101,12 @@
     saveState();
   }
 
+  function updatePreset(index: number) {
+    presets[index] = { ...presets[index], brightness, kelvin };
+    presets = [...presets];
+    saveState();
+  }
+
   function deletePreset(index: number) {
     presets = presets.filter((_, i) => i !== index);
     editingIndex = null;
@@ -119,6 +125,10 @@
       saveState();
     }
     editingIndex = null;
+  }
+
+  async function quitApp() {
+    await invoke("quit_app");
   }
 
   async function checkConnection() {
@@ -264,17 +274,24 @@
               onblur={finishEditing}
             />
           {:else}
-            <button class="preset-btn" onclick={() => applyPreset(preset)}>
-              {preset.name}
+            <button class="preset-btn" onclick={() => applyPreset(preset)} ondblclick={() => startEditing(i)}>
+              <span class="preset-name">{preset.name}</span>
+              <span class="preset-detail">{preset.brightness}% &middot; {preset.kelvin}K</span>
             </button>
             <div class="preset-actions">
-              <button class="icon-btn" onclick={() => startEditing(i)} title="Rename">&#9998;</button>
+              <button class="icon-btn" onclick={() => updatePreset(i)} title="Update to current values">&#8631;</button>
               <button class="icon-btn" onclick={() => deletePreset(i)} title="Delete">&times;</button>
             </div>
           {/if}
         </div>
       {/each}
     </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <button class="footer-btn" disabled title="Settings">&#9881;</button>
+    <button class="footer-btn quit-btn" onclick={quitApp}>Quit</button>
   </div>
 </div>
 
@@ -297,9 +314,22 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     padding: 16px;
+    padding-top: 24px;
     display: flex;
     flex-direction: column;
     gap: 14px;
+  }
+
+  .panel::before {
+    content: "";
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 12px;
+    height: 6px;
+    background: rgba(30, 30, 30, 0.95);
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
   }
 
   .header {
@@ -389,8 +419,8 @@
     -webkit-appearance: none;
     appearance: none;
     width: 100%;
-    height: 6px;
-    border-radius: 3px;
+    height: 8px;
+    border-radius: 4px;
     outline: none;
     cursor: pointer;
   }
@@ -406,17 +436,30 @@
   .slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
     background: #fff;
-    border: 2px solid rgba(0, 0, 0, 0.3);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    border: 2px solid rgba(0, 0, 0, 0.4);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
     cursor: pointer;
+    transition: box-shadow 0.15s;
+  }
+
+  .slider::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.15), 0 1px 4px rgba(0, 0, 0, 0.4);
+  }
+
+  .slider::-webkit-slider-thumb:active {
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.2), 0 1px 4px rgba(0, 0, 0, 0.4);
   }
 
   .slider:disabled {
     opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .slider:disabled::-webkit-slider-thumb {
     cursor: not-allowed;
   }
 
@@ -476,10 +519,23 @@
     cursor: pointer;
     text-align: left;
     transition: background 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
   }
 
   .preset-btn:hover {
     background: rgba(255, 255, 255, 0.1);
+  }
+
+  .preset-name {
+    line-height: 1.3;
+  }
+
+  .preset-detail {
+    font-size: 10px;
+    color: #777;
+    line-height: 1.2;
   }
 
   .preset-actions {
@@ -510,5 +566,39 @@
     color: #fff;
     font-size: 12px;
     outline: none;
+  }
+
+  .footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer-btn {
+    background: none;
+    border: none;
+    color: #777;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 4px;
+  }
+
+  .footer-btn:disabled {
+    color: #444;
+    cursor: default;
+  }
+
+  .footer-btn:not(:disabled):hover {
+    color: #ccc;
+  }
+
+  .quit-btn {
+    color: #999;
+  }
+
+  .quit-btn:hover {
+    color: #ff453a;
   }
 </style>

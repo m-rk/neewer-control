@@ -21,11 +21,17 @@ pub fn run() {
             commands::disconnect,
             commands::is_connected,
             commands::set_light,
+            commands::quit_app,
         ])
         .setup(|app| {
             // Build tray icon — click toggles the panel window
+            let tray_icon = {
+                let bytes = include_bytes!("../icons/tray-icon.png");
+                tauri::image::Image::from_bytes(bytes).expect("invalid tray icon")
+            };
             TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
+                .icon(tray_icon)
+                .icon_as_template(true)
                 .tooltip("NeewerControl")
                 .on_tray_icon_event(|tray, event| {
                     tauri_plugin_positioner::on_tray_event(tray.app_handle(), &event);
