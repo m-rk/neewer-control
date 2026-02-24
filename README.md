@@ -8,6 +8,10 @@ The USB serial protocol was reverse-engineered from the proprietary NEEWER Contr
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
+<p align="center">
+  <img src="screenshot.png" width="280" alt="NeewerControl menubar panel">
+</p>
+
 ## Features
 
 - **Menubar app** — lives in the macOS menu bar, click to open a dropdown panel
