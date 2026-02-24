@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 """
-Probe the Neewer PL81-Pro over USB serial by sending known BLE protocol
-commands at various baud rates. Watch the light for physical changes.
+Probe the Neewer PL81-Pro over USB serial using the discovered 0x3A protocol.
+
+Based on captured traffic, the USB protocol uses:
+  - Prefix: 0x3A (not 0x78 like BLE)
+  - Checksum: sum(all preceding bytes) & 0xFF
+  - Baud: 115200, 8N1
+
+This script tries sending commands using 0x3A prefix with both the known
+BLE command tags and guessed USB-specific tags. Watch the light for changes.
 """
 
+import glob
 import sys
 import time
-import glob
+
 import serial
 
 
@@ -14,145 +22,183 @@ def checksum(data: bytes) -> int:
     return sum(data) & 0xFF
 
 
-def build_cmd(tag: int, payload: bytes) -> bytes:
-    """Build a Neewer command: 0x78 <tag> <len> <payload...> <checksum>"""
-    frame = bytes([0x78, tag, len(payload)]) + payload
+def build_cmd(prefix: int, tag: int, payload: bytes) -> bytes:
+    """Build a command: <prefix> <tag> <len> <payload...> <checksum>"""
+    frame = bytes([prefix, tag, len(payload)]) + payload
     return frame + bytes([checksum(frame)])
 
 
-# Known BLE commands
-COMMANDS = {
-    "power_on":       build_cmd(0x81, bytes([0x01])),
-    "power_off":      build_cmd(0x81, bytes([0x02])),
-    "brightness_100": build_cmd(0x87, bytes([0x64, 0x2C])),  # 100%, ~5000K
-    "brightness_10":  build_cmd(0x87, bytes([0x0A, 0x2C])),  # 10%, ~5000K
-    "brightness_50":  build_cmd(0x87, bytes([0x32, 0x2C])),  # 50%, ~5000K
-    "cct_3200":       build_cmd(0x87, bytes([0x32, 0x20])),  # 50%, 3200K
-    "cct_5600":       build_cmd(0x87, bytes([0x32, 0x38])),  # 50%, 5600K
-    "rgb_red":        build_cmd(0x86, bytes([0x00, 0x00, 0x64, 0x64])),  # hue=0, sat=100, bri=100
-    "rgb_green":      build_cmd(0x86, bytes([0x78, 0x00, 0x64, 0x64])),  # hue=120
-    "rgb_blue":       build_cmd(0x86, bytes([0xF0, 0x00, 0x64, 0x64])),  # hue=240
-}
-
-# Baud rates to try (most common for CH340 devices)
-BAUD_RATES = [9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800, 921600]
-
-# Sequence of commands to cycle through at each baud rate.
-# These should produce visible changes if the light understands them.
-PROBE_SEQUENCE = [
-    ("power_on",       "Power ON",           2.0),
-    ("brightness_100", "Brightness -> 100%", 1.5),
-    ("brightness_10",  "Brightness -> 10%",  1.5),
-    ("brightness_50",  "Brightness -> 50%",  1.0),
-    ("cct_3200",       "CCT -> 3200K (warm)", 1.5),
-    ("cct_5600",       "CCT -> 5600K (cool)", 1.5),
-    ("rgb_red",        "RGB -> Red",         1.5),
-    ("rgb_green",      "RGB -> Green",       1.5),
-    ("rgb_blue",       "RGB -> Blue",        1.5),
-    ("power_off",      "Power OFF",          2.0),
-]
-
-
 def find_serial_port() -> str:
-    """Auto-detect the Neewer light's serial port."""
     candidates = glob.glob("/dev/cu.usbserial-*")
     if not candidates:
-        print("ERROR: No /dev/cu.usbserial-* device found. Is the light plugged in?")
+        print("ERROR: No /dev/cu.usbserial-* found. Is the light plugged in?")
         sys.exit(1)
-    if len(candidates) > 1:
-        print(f"Multiple serial devices found: {candidates}")
-        print(f"Using first: {candidates[0]}")
     return candidates[0]
 
 
-def try_read(ser: serial.Serial, timeout: float = 0.5) -> bytes:
-    """Try to read any available response bytes."""
-    ser.timeout = timeout
-    data = ser.read(256)
-    return data
+def send_and_listen(ser: serial.Serial, label: str, cmd: bytes, wait: float = 1.5):
+    """Send a command, print it, and listen for any response."""
+    hex_str = cmd.hex(" ")
+    print(f"  >> {label:<35s}  [{hex_str}]")
+    ser.write(cmd)
+    ser.flush()
 
-
-def probe_baud_rate(port: str, baud: int) -> None:
-    """Send the probe sequence at a specific baud rate."""
-    print(f"\n{'='*60}")
-    print(f"  BAUD RATE: {baud}")
-    print(f"{'='*60}")
-    print(f"  Watch the light for any physical changes!")
-    print()
-
-    try:
-        ser = serial.Serial(
-            port=port,
-            baudrate=baud,
-            bytesize=serial.EIGHTBITS,
-            parity=serial.PARITY_NONE,
-            stopbits=serial.STOPBITS_ONE,
-            timeout=1,
-            write_timeout=1,
-        )
-    except serial.SerialException as e:
-        print(f"  Failed to open {port} at {baud}: {e}")
-        return
-
-    # Flush any stale data
-    ser.reset_input_buffer()
-    ser.reset_output_buffer()
-
-    for cmd_name, description, delay in PROBE_SEQUENCE:
-        cmd_bytes = COMMANDS[cmd_name]
-        hex_str = cmd_bytes.hex(" ")
-
-        print(f"  >> {description:<25s}  [{hex_str}]")
-        ser.write(cmd_bytes)
-        ser.flush()
-
-        # Check for any response
-        response = try_read(ser, timeout=0.3)
-        if response:
-            print(f"  << RESPONSE ({len(response)} bytes): [{response.hex(' ')}]")
-
-        time.sleep(delay)
-
-    ser.close()
+    # Listen for response
+    time.sleep(0.1)
+    start = time.time()
+    while time.time() - start < wait:
+        data = ser.read(256)
+        if data:
+            print(f"  << RESPONSE ({len(data)} bytes): [{data.hex(' ')}]")
+        else:
+            time.sleep(0.05)
 
 
 def main():
     port = find_serial_port()
-    print(f"Neewer PL81-Pro Protocol Probe")
+    print(f"Neewer PL81-Pro Protocol Probe v2")
     print(f"Device: {port}")
-    print()
-    print("This script sends known Neewer BLE commands over USB serial")
-    print("at different baud rates. Watch the light for any reaction.")
-    print()
-    print("Commands that will be sent at each baud rate:")
-    for cmd_name, description, _ in PROBE_SEQUENCE:
-        print(f"  - {description}")
+    print(f"Baud: 115200")
     print()
 
-    if len(sys.argv) > 1:
-        # Allow testing a single baud rate: python probe.py 115200
-        baud = int(sys.argv[1])
-        print(f"Testing single baud rate: {baud}")
-        input("Press Enter to start...")
-        probe_baud_rate(port, baud)
-    else:
-        print(f"Will try {len(BAUD_RATES)} baud rates: {BAUD_RATES}")
-        input("Press Enter to start...")
-        for baud in BAUD_RATES:
-            probe_baud_rate(port, baud)
-            print()
-            resp = input("Did the light react? [y/N/q] ").strip().lower()
-            if resp == "y":
-                print(f"\n*** BAUD RATE {baud} WORKS! ***")
-                print("Run again with just this baud rate for detailed testing:")
-                print(f"  python probe.py {baud}")
-                return
-            elif resp == "q":
-                print("Aborted.")
-                return
+    ser = serial.Serial(
+        port=port, baudrate=115200,
+        bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE,
+        stopbits=serial.STOPBITS_ONE, timeout=0, write_timeout=1,
+    )
+    ser.reset_input_buffer()
+    ser.reset_output_buffer()
 
-    print("\nDone. If no baud rate worked, the USB protocol may differ from BLE.")
-    print("Next step: sniff traffic from the NEEWER Control Center app using socat.")
+    # First, drain any unsolicited status packets from the light
+    print("Draining unsolicited data for 2 seconds...")
+    start = time.time()
+    while time.time() - start < 2:
+        data = ser.read(256)
+        if data:
+            print(f"  << UNSOLICITED: [{data.hex(' ')}]")
+        time.sleep(0.05)
+    print()
+
+    # --- Round 1: 0x3A prefix with BLE command tags ---
+    print("=" * 60)
+    print("  ROUND 1: 0x3A prefix + BLE command tags")
+    print("=" * 60)
+
+    tests_3a_ble = [
+        ("Power ON  (3A 81)",    build_cmd(0x3A, 0x81, bytes([0x01]))),
+        ("Power OFF (3A 81)",    build_cmd(0x3A, 0x81, bytes([0x02]))),
+        ("CCT 50% 5000K (3A 87)", build_cmd(0x3A, 0x87, bytes([0x32, 0x2C]))),
+        ("CCT 100% (3A 87)",     build_cmd(0x3A, 0x87, bytes([0x64, 0x2C]))),
+        ("CCT 10% (3A 87)",      build_cmd(0x3A, 0x87, bytes([0x0A, 0x2C]))),
+        ("RGB Red (3A 86)",      build_cmd(0x3A, 0x86, bytes([0x00, 0x00, 0x64, 0x64]))),
+        ("RGB Green (3A 86)",    build_cmd(0x3A, 0x86, bytes([0x78, 0x00, 0x64, 0x64]))),
+        ("RGB Blue (3A 86)",     build_cmd(0x3A, 0x86, bytes([0xF0, 0x00, 0x64, 0x64]))),
+    ]
+
+    for label, cmd in tests_3a_ble:
+        send_and_listen(ser, label, cmd)
+
+    input("\nDid anything happen? Press Enter to continue...\n")
+
+    # --- Round 2: 0x3A prefix with status-report-style tags ---
+    # The light sends 0x3A 0x02 for status. Maybe commands use 0x01?
+    print("=" * 60)
+    print("  ROUND 2: 0x3A prefix + guessed command tags")
+    print("=" * 60)
+
+    tests_3a_guess = [
+        # Tag 0x01 — maybe "set state" (inverse of 0x02 "report state")
+        ("Set CCT 100% (tag 01)", build_cmd(0x3A, 0x01, bytes([0x01, 0x64, 0x09]))),
+        ("Set CCT 10%  (tag 01)", build_cmd(0x3A, 0x01, bytes([0x01, 0x0A, 0x09]))),
+        ("Set CCT 50%  (tag 01)", build_cmd(0x3A, 0x01, bytes([0x01, 0x32, 0x09]))),
+
+        # Try with extra trailing 0x00 like the status packets have
+        ("Set CCT 100% +00 (tag 01)", build_cmd(0x3A, 0x01, bytes([0x01, 0x64, 0x09, 0x00]))),
+        ("Set CCT 10%  +00 (tag 01)", build_cmd(0x3A, 0x01, bytes([0x01, 0x0A, 0x09, 0x00]))),
+
+        # Maybe tag 0x03 or 0x04?
+        ("Set CCT 100% (tag 03)", build_cmd(0x3A, 0x03, bytes([0x01, 0x64, 0x09]))),
+        ("Set CCT 100% (tag 04)", build_cmd(0x3A, 0x04, bytes([0x01, 0x64, 0x09]))),
+        ("Set CCT 100% (tag 05)", build_cmd(0x3A, 0x05, bytes([0x01, 0x64, 0x09]))),
+    ]
+
+    for label, cmd in tests_3a_guess:
+        send_and_listen(ser, label, cmd)
+
+    input("\nDid anything happen? Press Enter to continue...\n")
+
+    # --- Round 3: Raw BLE commands unchanged (0x78 prefix) at 115200 ---
+    # Maybe the light accepts both prefixes?
+    print("=" * 60)
+    print("  ROUND 3: Original BLE commands (0x78) at 115200 baud")
+    print("=" * 60)
+
+    tests_78 = [
+        ("Power ON  (78 81)", build_cmd(0x78, 0x81, bytes([0x01]))),
+        ("Power OFF (78 81)", build_cmd(0x78, 0x81, bytes([0x02]))),
+        ("CCT 100% (78 87)",  build_cmd(0x78, 0x87, bytes([0x64, 0x2C]))),
+        ("CCT 10%  (78 87)",  build_cmd(0x78, 0x87, bytes([0x0A, 0x2C]))),
+    ]
+
+    for label, cmd in tests_78:
+        send_and_listen(ser, label, cmd)
+
+    input("\nDid anything happen? Press Enter to continue...\n")
+
+    # --- Round 4: Mirror the exact status packet format back as a command ---
+    # What if we just echo the status format but with different values?
+    print("=" * 60)
+    print("  ROUND 4: Echo status packet format as commands")
+    print("=" * 60)
+
+    tests_echo = [
+        # Exact format: 3a 02 03 [mode] [brightness] [cct] [00] [checksum]
+        ("Echo brightness=100", build_cmd(0x3A, 0x02, bytes([0x01, 0x64, 0x09, 0x00]))),
+        ("Echo brightness=5",   build_cmd(0x3A, 0x02, bytes([0x01, 0x05, 0x09, 0x00]))),
+        ("Echo brightness=50",  build_cmd(0x3A, 0x02, bytes([0x01, 0x32, 0x09, 0x00]))),
+        ("Echo cct=0x20",       build_cmd(0x3A, 0x02, bytes([0x01, 0x32, 0x20, 0x00]))),
+        ("Echo cct=0x38",       build_cmd(0x3A, 0x02, bytes([0x01, 0x32, 0x38, 0x00]))),
+    ]
+
+    for label, cmd in tests_echo:
+        send_and_listen(ser, label, cmd)
+
+    input("\nDid anything happen? Press Enter to continue...\n")
+
+    # --- Round 5: Try simple single-byte and two-byte commands ---
+    print("=" * 60)
+    print("  ROUND 5: Minimal / exploratory commands")
+    print("=" * 60)
+
+    tests_minimal = [
+        # Maybe just the prefix + a simple byte?
+        ("Just 3A",              bytes([0x3A])),
+        ("3A 00",                bytes([0x3A, 0x00])),
+        ("3A 01",                bytes([0x3A, 0x01])),
+        ("3A 02",                bytes([0x3A, 0x02])),
+        # Try newline-terminated (some serial protocols use text)
+        ("TEXT: ON\\r\\n",       b"ON\r\n"),
+        ("TEXT: on\\r\\n",       b"on\r\n"),
+        # Try the NeewerLite-Python "new style" with MAC-addressed format
+        ("3A 8D power on",       build_cmd(0x3A, 0x8D, bytes([0x00]*6 + [0x81, 0x01]))),
+        ("3A 8E CCT",           build_cmd(0x3A, 0x8E, bytes([0x00]*6 + [0x87, 0x64, 0x2C]))),
+    ]
+
+    for label, cmd in tests_minimal:
+        hex_str = cmd.hex(" ")
+        print(f"  >> {label:<35s}  [{hex_str}]")
+        ser.write(cmd)
+        ser.flush()
+        time.sleep(0.1)
+        data = ser.read(256)
+        if data:
+            print(f"  << RESPONSE ({len(data)} bytes): [{data.hex(' ')}]")
+        time.sleep(1.0)
+
+    ser.close()
+    print()
+    print("Done. If nothing worked, we need to sniff the Neewer app traffic")
+    print("through the proxy (run sniff.py and connect the app to the PTY).")
 
 
 if __name__ == "__main__":

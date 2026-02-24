@@ -103,59 +103,58 @@ Some newer lights use an extended format with a 6-byte MAC address:
 
 ---
 
-## macOS Libraries for USB Communication
+## USB Serial Protocol (Reverse Engineered)
 
-### If the light is USB HID:
-- **hidapi** (C, with Python bindings) — Best option. Uses IOHIDManager
-  natively on macOS. No kernel driver conflicts. `pip install hidapi`
-- **node-hid** (Node.js) — Wrapper around hidapi. `npm install node-hid`
-- **pyusb** (Python) — Lower-level, but macOS kernel claims HID devices,
-  causing access issues. Prefer hidapi.
+### Connection Parameters
+- **Baud rate: 115200**
+- 8N1 (8 data bits, no parity, 1 stop bit)
+- Library: `pyserial`
 
-### If the light is USB Serial (CH340):
-- **pyserial** (Python) — `pip install pyserial`. Open `/dev/cu.usbserial-*`
-  and read/write bytes directly. Simplest approach.
-- **serialport** (Node.js) — `npm install serialport`
-- Native: just `open()` the device file and `read()`/`write()`
+### Packet Format
+Same structure as BLE but with prefix `0x3A` instead of `0x78`:
+```
+[0x3A] [command_tag] [payload_length] [payload...] [checksum]
+```
+- Prefix: always `0x3A` (ASCII `:`)
+- Checksum: `sum(all_preceding_bytes) & 0xFF` (same as BLE)
 
-### For BLE (alternative/fallback approach):
-- **Bleak** (Python) — Cross-platform, mature. `pip install bleak`
-- **CoreBluetooth** (Swift) — Native macOS, what NeewerLite uses.
+### Captured: Light → Host Status Reports
+The light sends 8-byte status packets **unprompted** when its state changes
+(e.g. physical knob turns). No polling or handshake needed.
 
----
+```
+3a 02 03 01 32 09 00 7b   brightness=50, cct=0x09
+3a 02 03 01 0f 09 00 58   brightness=15, cct=0x09
+3a 02 03 01 23 09 00 6c   brightness=35, cct=0x09
+3a 02 03 01 07 09 00 50   brightness=7,  cct=0x09
+```
 
-## USB Reverse Engineering Strategy
+Decoded structure:
+| Byte | Value  | Meaning                              |
+|------|--------|--------------------------------------|
+| 0    | `0x3A` | Prefix                               |
+| 1    | `0x02` | Command tag (status report)          |
+| 2    | `0x03` | Payload length (3 bytes)             |
+| 3    | `0x01` | Mode (0x01 = CCT mode?)              |
+| 4    | varies | Brightness (0-100 decimal)           |
+| 5    | `0x09` | Color temperature (encoding TBD)     |
+| 6    | `0x00` | Unknown / padding                    |
+| 7    | varies | Checksum: `sum(bytes 0-6) & 0xFF`    |
 
-### Phase 1: Identify the Device
-1. Unplug the PL81 Pro, enumerate USB devices
-2. Plug it back in, enumerate again
-3. Diff the results to find the exact VID/PID and USB class
-4. Check if it appears as HID, CDC/Serial, or custom USB class
+### Mapping to BLE Protocol
+| Feature        | BLE prefix | USB prefix | BLE tag | USB tag (guess) |
+|----------------|------------|------------|---------|-----------------|
+| Status report  | 0x78       | 0x3A       | —       | 0x02            |
+| Power          | 0x78       | 0x3A       | 0x81    | TBD             |
+| CCT mode       | 0x78       | 0x3A       | 0x87    | TBD             |
+| HSI/RGB mode   | 0x78       | 0x3A       | 0x86    | TBD             |
+| Scene mode     | 0x78       | 0x3A       | 0x88    | TBD             |
 
-### Phase 2: Sniff the Protocol
-1. Install NEEWER Control Center from the Mac App Store
-2. Set up USB packet capture (options below)
-3. Perform simple operations: power on/off, brightness up/down, change CCT
-4. Capture and analyze the packets
-
-**USB capture options on macOS:**
-- **Wireshark + USBPcap**: Limited on macOS, better on Linux
-- **USB Prober** (Xcode instruments): Apple's USB debugging tool
-- **PacketLogger**: Apple's Bluetooth packet logger (if BLE-over-USB)
-- **strace/dtrace on the serial port**: If it's a CH340 serial device, you can
-  monitor reads/writes on `/dev/cu.usbserial-*`
-- **socat proxy**: Create a serial proxy that logs all traffic between the
-  Neewer app and the device
-
-### Phase 3: Decode the Commands
-- Compare captured bytes against the known BLE command structure
-- The `0x78` prefix and checksum algorithm are likely identical
-- Map each UI action to a byte sequence
-
-### Phase 4: Build the Tool
-- Start with a simple Python CLI using pyserial or hidapi
-- Implement core commands: power, brightness, CCT, HSI/RGB
-- Add a TUI or web UI later if desired
+### What We Still Need
+- Capture traffic from the NEEWER app to the light (host → light commands)
+- Determine command tags for power, CCT, HSI, scenes
+- Decode the CCT byte (0x09 = ?) — possibly different encoding than BLE
+- Test if BLE command tags (0x81, 0x87, 0x86) work with 0x3A prefix
 
 ---
 
@@ -163,9 +162,9 @@ Some newer lights use an extended format with a 6-byte MAC address:
 
 1. ~~**Which USB device is the light?**~~ **RESOLVED** — CH340 serial at `/dev/cu.usbserial-11220`
 2. ~~**HID vs Serial vs Custom?**~~ **RESOLVED** — Serial (CH340)
-3. **Does USB use same protocol as BLE?** Likely, but unconfirmed
-4. **Baud rate**: Common candidates are 9600, 115200, 256000 — need to determine
-5. **Any handshake required?** The WiFi protocol needs a 3-packet handshake;
-   USB might need something similar
-6. **Does the light send state back?** BLE has a notify characteristic; serial
-   port can be read for responses
+3. ~~**Does USB use same protocol as BLE?**~~ **PARTIALLY** — same checksum, same framing, but prefix is `0x3A` not `0x78`
+4. ~~**Baud rate**~~ **RESOLVED** — 115200
+5. ~~**Does the light send state back?**~~ **YES** — sends 8-byte status packets on state change
+6. **Host → light command format** — need to capture app traffic or brute-force
+7. **CCT byte encoding** — `0x09` doesn't match BLE encoding (0x20-0x38)
+8. **Any handshake required?** — light sends data unprompted, so maybe not

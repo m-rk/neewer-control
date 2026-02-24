@@ -190,6 +190,8 @@ class Sniffer:
                             pass
 
     def stop(self):
+        if not self.running and self.log_file is None:
+            return  # already stopped
         self.running = False
         print()
         print("="*60)
@@ -199,12 +201,17 @@ class Sniffer:
         print("="*60)
         if self.ser and self.ser.is_open:
             self.ser.close()
-        if self.master_fd is not None:
-            os.close(self.master_fd)
-        if self.slave_fd is not None:
-            os.close(self.slave_fd)
+        for fd_name in ("master_fd", "slave_fd"):
+            fd = getattr(self, fd_name)
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+                setattr(self, fd_name, None)
         if self.log_file:
             self.log_file.close()
+            self.log_file = None
 
 
 def main():
