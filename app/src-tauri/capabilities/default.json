@@ -1,0 +1,19 @@
+{
+  "identifier": "default",
+  "description": "Default capabilities for NeewerControl",
+  "windows": ["panel"],
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:window:allow-is-visible",
+    "positioner:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-unregister-all",
+    "global-shortcut:allow-is-registered",
+    "store:default"
+  ]
+}
