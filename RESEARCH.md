@@ -103,20 +103,71 @@ Some newer lights use an extended format with a 6-byte MAC address:
 
 ---
 
-## USB Serial Protocol (Reverse Engineered)
+## USB Architecture (Dual-Channel)
+
+The PL81-Pro presents as a **composite USB device** with two interfaces:
+
+| Interface        | Chip    | VID:PID       | Role                    |
+|------------------|---------|---------------|-------------------------|
+| HID (vendor)     | Realtek | 0x0BDA:0x1100 | **Commands** (host→light) |
+| Serial (CDC)     | CH340   | 0x1A86:0x7523 | **Status** (light→host)   |
+
+This was confirmed by:
+- `fs_usage` shows the Neewer app **never reads/writes** the serial port file
+- App binary contains `USBHIDDevice`, `IOHIDDeviceSetReport`, `BT_Send_USB_Data:`
+- App uses ORSSerialPort for receiving status only
+- Plug/unplug: Realtek HID stays (part of USB hub), CH340 disappears
+
+**CORRECTION**: The Realtek HID (VID 0x0BDA) is part of the USB **hub/dock**,
+not the light itself (it remained when the light was unplugged). The Neewer app
+uses this HID interface for communication — the light's firmware routes through
+the hub's HID chip.
+
+### HID Report Descriptor
+```
+06 DA FF    Usage Page (0xFFDA, vendor-specific)
+09 DA       Usage (0xDA)
+A1 01       Collection (Application)
+  15 80     Logical Min (-128)
+  25 7F     Logical Max (127)
+  75 08     Report Size (8 bits)
+  95 C0     Report Count (192)
+  09 D1     Usage (0xD1)
+  91 02     Output (192 bytes, no report ID)
+  75 08     Report Size (8 bits)
+  95 C0     Report Count (192)
+  09 D2     Usage (0xD2)
+  81 02     Input (192 bytes, no report ID)
+C0          End Collection
+```
+
+- Output reports: **192 bytes**, report ID 0, usage 0xD1
+- Input reports: **192 bytes**, report ID 0, usage 0xD2
+- No feature reports
+
+### macOS Permission Requirement
+Writing to the HID device requires **Input Monitoring** permission.
+`IOHIDDeviceSetReport` returns `0xe0005000` without it.
+The NEEWER Control Center app has this via App Store entitlements.
+
+**Fix:** System Settings → Privacy & Security → Input Monitoring → add Terminal
+
+---
+
+## Serial Status Protocol (Light → Host)
 
 ### Connection Parameters
 - **Baud rate: 115200**
 - 8N1 (8 data bits, no parity, 1 stop bit)
+- Device: `/dev/cu.usbserial-*`
 - Library: `pyserial`
 
 ### Packet Format
-Same structure as BLE but with prefix `0x3A` instead of `0x78`:
 ```
 [0x3A] [command_tag] [payload_length] [payload...] [checksum]
 ```
 - Prefix: always `0x3A` (ASCII `:`)
-- Checksum: `sum(all_preceding_bytes) & 0xFF` (same as BLE)
+- Checksum: `sum(all_preceding_bytes) & 0xFF`
 
 ### Captured: Light → Host Status Reports
 The light sends 8-byte status packets **unprompted** when its state changes
@@ -141,30 +192,19 @@ Decoded structure:
 | 6    | `0x00` | Unknown / padding                    |
 | 7    | varies | Checksum: `sum(bytes 0-6) & 0xFF`    |
 
-### Mapping to BLE Protocol
-| Feature        | BLE prefix | USB prefix | BLE tag | USB tag (guess) |
-|----------------|------------|------------|---------|-----------------|
-| Status report  | 0x78       | 0x3A       | —       | 0x02            |
-| Power          | 0x78       | 0x3A       | 0x81    | TBD             |
-| CCT mode       | 0x78       | 0x3A       | 0x87    | TBD             |
-| HSI/RGB mode   | 0x78       | 0x3A       | 0x86    | TBD             |
-| Scene mode     | 0x78       | 0x3A       | 0x88    | TBD             |
-
-### What We Still Need
-- Capture traffic from the NEEWER app to the light (host → light commands)
-- Determine command tags for power, CCT, HSI, scenes
-- Decode the CCT byte (0x09 = ?) — possibly different encoding than BLE
-- Test if BLE command tags (0x81, 0x87, 0x86) work with 0x3A prefix
+### CCT Encoding
+App shows 7000K when byte 5 = `0x09`. The PL81 Pro range is 3200K-7000K.
+Encoding is TBD — may be an index or different scale than BLE (0x20-0x38).
 
 ---
 
 ## Key Unknowns
 
-1. ~~**Which USB device is the light?**~~ **RESOLVED** — CH340 serial at `/dev/cu.usbserial-11220`
-2. ~~**HID vs Serial vs Custom?**~~ **RESOLVED** — Serial (CH340)
-3. ~~**Does USB use same protocol as BLE?**~~ **PARTIALLY** — same checksum, same framing, but prefix is `0x3A` not `0x78`
-4. ~~**Baud rate**~~ **RESOLVED** — 115200
-5. ~~**Does the light send state back?**~~ **YES** — sends 8-byte status packets on state change
-6. **Host → light command format** — need to capture app traffic or brute-force
-7. **CCT byte encoding** — `0x09` doesn't match BLE encoding (0x20-0x38)
-8. **Any handshake required?** — light sends data unprompted, so maybe not
+1. ~~**Which USB device is the light?**~~ **RESOLVED** — dual: HID + serial
+2. ~~**HID vs Serial vs Custom?**~~ **RESOLVED** — HID for commands, serial for status
+3. ~~**Baud rate**~~ **RESOLVED** — 115200
+4. ~~**Does the light send state back?**~~ **YES** — 8-byte serial status packets
+5. **HID command format** — need Input Monitoring permission to test
+6. **Does HID use BLE protocol (0x78) or USB protocol (0x3A)?** — TBD
+7. **CCT byte encoding** — `0x09` = 7000K, but formula unknown
+8. **HID checksum** — binary has `checkSumUsbWithData:dataID:` (may differ from BLE)
