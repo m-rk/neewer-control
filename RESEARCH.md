@@ -7,31 +7,24 @@ for controlling the Neewer PL81-Pro-1260740 panel light via USB-C on macOS.
 
 ---
 
-## USB Device Detection (2026-02-24)
+## USB Device Identification (2026-02-24)
 
-No device explicitly labeled "Neewer" was found in the USB device tree. Devices
-detected on this system:
+**Confirmed via plug/unplug test:** The PL81-Pro is the **CH340 USB Serial**
+device. Unplugging the light removes the "USB Serial" entries from `ioreg`.
 
-| Device              | VID (dec) | PID (dec) | Notes                          |
-|---------------------|-----------|-----------|--------------------------------|
-| Generic USB2.1 Hub  | 3034      | 21521     | Realtek hub chip               |
-| Realtek HID Device  | 3034      | 4352      | Could be Neewer, generic name  |
-| USB Serial (CH340)  | 6790      | 29987     | `/dev/cu.usbserial-11220`      |
-| daskeyboard         | 1241      | 8211      | Keyboard                       |
-| OBSBOT Tiny 2       | 13668     | 65272     | Webcam                         |
-| Stream Deck Plus    | 4057      | 132       | Elgato                         |
-| fifine Microphone   | 12610     | 1672      | Microphone                     |
+| Field         | Value                                  |
+|---------------|----------------------------------------|
+| Chip          | CH340 (QinHeng Electronics)            |
+| VID           | 0x1A86 (6790)                          |
+| PID           | 0x7523 (29987)                         |
+| USB Class     | CDC / Serial                           |
+| Device path   | `/dev/cu.usbserial-11220`              |
+| Driver        | `com.apple.DriverKit.AppleUSBCHCOM`    |
 
-**Two candidates for the Neewer light:**
-
-1. **Realtek HID Device** (VID 0x0BDA / 3034, PID 0x1100 / 4352) — Shows as a
-   generic HID device. Could be the light presenting as USB HID.
-2. **CH340 USB Serial** (VID 0x1A86 / 6790, PID 0x7523 / 29987) — CH340 chips
-   are extremely common in Chinese electronics. The light could use a serial
-   protocol over this chip.
-
-**Next step:** Unplug the light and re-enumerate USB to identify which device
-disappears — that's the Neewer.
+This is the simplest scenario — the light appears as a standard serial port.
+Communication is done by opening the device file and reading/writing bytes
+directly. No special USB HID or custom driver needed. Use `pyserial` (Python)
+or any serial library.
 
 ---
 
@@ -168,11 +161,11 @@ Some newer lights use an extended format with a 6-byte MAC address:
 
 ## Key Unknowns
 
-1. **Which USB device is the light?** Need to plug/unplug test
-2. **HID vs Serial vs Custom?** Determines which library to use
+1. ~~**Which USB device is the light?**~~ **RESOLVED** — CH340 serial at `/dev/cu.usbserial-11220`
+2. ~~**HID vs Serial vs Custom?**~~ **RESOLVED** — Serial (CH340)
 3. **Does USB use same protocol as BLE?** Likely, but unconfirmed
-4. **Baud rate** (if serial): Common candidates are 9600, 115200, 256000
+4. **Baud rate**: Common candidates are 9600, 115200, 256000 — need to determine
 5. **Any handshake required?** The WiFi protocol needs a 3-packet handshake;
    USB might need something similar
-6. **Does the light send state back?** BLE has a notify characteristic; USB
-   might have a similar feedback mechanism
+6. **Does the light send state back?** BLE has a notify characteristic; serial
+   port can be read for responses
