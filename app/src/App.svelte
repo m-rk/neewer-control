@@ -296,13 +296,17 @@
 </div>
 
 <style>
+  :global(html),
   :global(body) {
     margin: 0;
     padding: 0;
+    background: transparent;
+  }
+
+  :global(body) {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
     font-size: 13px;
     color: #e0e0e0;
-    background: transparent;
     -webkit-user-select: none;
     user-select: none;
   }
