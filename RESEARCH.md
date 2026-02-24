@@ -252,12 +252,20 @@ Same format as commands — bidirectional protocol.
 | 5    | `0x09` | Color temperature (see below)        |
 | 6-7  | varies | 16-bit big-endian checksum           |
 
-### CCT Temperature Encoding
-- PL81 Pro range: 3200K-7000K
-- App shows 7000K when byte 5 = `0x09`
-- Temperature byte accepts values 0x00-0x3F (all produce echo ack)
-- Temp scan confirmed all values 0x00-0x3F are accepted by the light
-- Exact K mapping TBD — need to cross-reference with light's display
+### CCT Temperature Encoding (Calibrated)
+- PL81 Pro range: **2900K–7000K** (confirmed by Neewer specs)
+- **19 effective steps**: 0x00 (warmest) to 0x12 (coolest)
+- Values 0x13–0x3F are accepted but clamped at coolest (7000K)
+- Each step ≈ 228K
+- Formula: `byte = round((kelvin - 2900) * 18 / 4100)`
+- Inverse: `kelvin = 2900 + byte * 4100 / 18`
+
+| Byte | Approx K | Description |
+|------|----------|-------------|
+| 0x00 |  2900K   | Warmest     |
+| 0x09 |  4950K   | Mid-point   |
+| 0x12 |  7000K   | Coolest     |
+| 0x13+ |  7000K  | Clamped     |
 
 ---
 
@@ -450,7 +458,8 @@ The app is native Objective-C (not Electron). Tools to extract protocol:
 
 10. ~~**HSI mode**~~ Not supported — PL81-Pro is bi-color (CCT only), no RGB LEDs. Tag 0x04 commands send without error but produce no echo and no light change.
 
+11. ~~**CCT temperature encoding**~~ Calibrated: 0x00=2900K to 0x12=7000K, 19 steps of ~228K. Values above 0x12 clamped.
+
 ### Remaining
-1. **CCT temperature encoding** — 0x09 = 7000K, full mapping TBD
-2. **Power ON/OFF** — tag 0x06 accepted but no light change; may not apply to PL81-Pro
-3. **Scene/effect mode** — untested over serial
+1. **Power ON/OFF** — tag 0x06 accepted but no light change; may not apply to PL81-Pro
+2. **Scene/effect mode** — untested over serial

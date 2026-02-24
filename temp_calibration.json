@@ -1,0 +1,258 @@
+{
+  "0x00": {
+    "decimal": 0,
+    "description": "very warm"
+  },
+  "0x01": {
+    "decimal": 1,
+    "description": "slightly less warm"
+  },
+  "0x02": {
+    "decimal": 2,
+    "description": "slightly less warm again"
+  },
+  "0x03": {
+    "decimal": 3,
+    "description": "slightly less warm again"
+  },
+  "0x04": {
+    "decimal": 4,
+    "description": "slightly less warm again"
+  },
+  "0x05": {
+    "decimal": 5,
+    "description": "slightly less warm again"
+  },
+  "0x06": {
+    "decimal": 6,
+    "description": "slightly less warm again"
+  },
+  "0x07": {
+    "decimal": 7,
+    "description": "slightly less warm again"
+  },
+  "0x08": {
+    "decimal": 8,
+    "description": "slightly less warm again"
+  },
+  "0x09": {
+    "decimal": 9,
+    "description": "slightly less warm again"
+  },
+  "0x0a": {
+    "decimal": 10,
+    "description": "slightly less warm again"
+  },
+  "0x0b": {
+    "decimal": 11,
+    "description": "slightly less warm again"
+  },
+  "0x0c": {
+    "decimal": 12,
+    "description": "slightly less warm again"
+  },
+  "0x0d": {
+    "decimal": 13,
+    "description": "slightly less warm again"
+  },
+  "0x0e": {
+    "decimal": 14,
+    "description": "slightly less warm again"
+  },
+  "0x0f": {
+    "decimal": 15,
+    "description": "slightly less warm again"
+  },
+  "0x10": {
+    "decimal": 16,
+    "description": "slightly less warm again"
+  },
+  "0x11": {
+    "decimal": 17,
+    "description": "slightly less warm again"
+  },
+  "0x12": {
+    "decimal": 18,
+    "description": "very cool now"
+  },
+  "0x13": {
+    "decimal": 19,
+    "description": "still very cool, no change"
+  },
+  "0x14": {
+    "decimal": 20,
+    "description": "still very cool, no change"
+  },
+  "0x15": {
+    "decimal": 21,
+    "description": "still very cool, no change"
+  },
+  "0x16": {
+    "decimal": 22,
+    "description": "still very cool, no change"
+  },
+  "0x17": {
+    "decimal": 23,
+    "description": "still very cool, no change"
+  },
+  "0x18": {
+    "decimal": 24,
+    "description": "still very cool, no change"
+  },
+  "0x19": {
+    "decimal": 25,
+    "description": "still very cool, no change"
+  },
+  "0x1a": {
+    "decimal": 26,
+    "description": "still very cool, no change"
+  },
+  "0x1b": {
+    "decimal": 27,
+    "description": "still very cool, no change"
+  },
+  "0x1c": {
+    "decimal": 28,
+    "description": "still very cool, no change"
+  },
+  "0x1d": {
+    "decimal": 29,
+    "description": "still very cool, no change"
+  },
+  "0x1e": {
+    "decimal": 30,
+    "description": "still very cool, no change"
+  },
+  "0x1f": {
+    "decimal": 31,
+    "description": "still very cool, no change"
+  },
+  "0x20": {
+    "decimal": 32,
+    "description": "still very cool, no change"
+  },
+  "0x21": {
+    "decimal": 33,
+    "description": "still very cool, no change"
+  },
+  "0x22": {
+    "decimal": 34,
+    "description": "still very cool, no change"
+  },
+  "0x23": {
+    "decimal": 35,
+    "description": "still very cool, no change"
+  },
+  "0x24": {
+    "decimal": 36,
+    "description": "still very cool, no change"
+  },
+  "0x25": {
+    "decimal": 37,
+    "description": "still very cool, no change"
+  },
+  "0x26": {
+    "decimal": 38,
+    "description": "still very cool, no change"
+  },
+  "0x27": {
+    "decimal": 39,
+    "description": "still very cool, no change"
+  },
+  "0x28": {
+    "decimal": 40,
+    "description": "still very cool, no change"
+  },
+  "0x29": {
+    "decimal": 41,
+    "description": "still very cool, no change"
+  },
+  "0x2a": {
+    "decimal": 42,
+    "description": "still very cool, no change"
+  },
+  "0x2b": {
+    "decimal": 43,
+    "description": "still very cool, no change"
+  },
+  "0x2c": {
+    "decimal": 44,
+    "description": "still very cool, no change"
+  },
+  "0x2d": {
+    "decimal": 45,
+    "description": "still very cool, no change"
+  },
+  "0x2e": {
+    "decimal": 46,
+    "description": "still very cool, no change"
+  },
+  "0x2f": {
+    "decimal": 47,
+    "description": "still very cool, no change"
+  },
+  "0x30": {
+    "decimal": 48,
+    "description": "still very cool, no change"
+  },
+  "0x31": {
+    "decimal": 49,
+    "description": "still very cool, no change"
+  },
+  "0x32": {
+    "decimal": 50,
+    "description": "still very cool, no change"
+  },
+  "0x33": {
+    "decimal": 51,
+    "description": "still very cool, no change"
+  },
+  "0x34": {
+    "decimal": 52,
+    "description": "still very cool, no change"
+  },
+  "0x35": {
+    "decimal": 53,
+    "description": "still very cool, no change"
+  },
+  "0x36": {
+    "decimal": 54,
+    "description": "still very cool, no change"
+  },
+  "0x37": {
+    "decimal": 55,
+    "description": "still very cool, no change"
+  },
+  "0x38": {
+    "decimal": 56,
+    "description": "still very cool, no change"
+  },
+  "0x39": {
+    "decimal": 57,
+    "description": "still very cool, no change"
+  },
+  "0x3a": {
+    "decimal": 58,
+    "description": "still very cool, no change"
+  },
+  "0x3b": {
+    "decimal": 59,
+    "description": "still very cool, no change"
+  },
+  "0x3c": {
+    "decimal": 60,
+    "description": "still very cool, no change"
+  },
+  "0x3d": {
+    "decimal": 61,
+    "description": "still very cool, no change"
+  },
+  "0x3e": {
+    "decimal": 62,
+    "description": "still very cool, no change"
+  },
+  "0x3f": {
+    "decimal": 63,
+    "description": "still very cool, no change"
+  }
+}
