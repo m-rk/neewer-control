@@ -1,6 +1,6 @@
 # NeewerControl
 
-Open-source USB control for Neewer LED panel lights on macOS. Includes a menubar GUI app and a Python CLI.
+USB control for Neewer LED panel lights on macOS. Includes a menubar GUI app and a Python CLI.
 
 The USB serial protocol was reverse-engineered from the proprietary NEEWER Control Center app binary — this is the first public USB control implementation for any Neewer light. All existing projects use Bluetooth only. See [RESEARCH.md](RESEARCH.md) for the full protocol documentation.
 
