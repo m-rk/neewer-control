@@ -15,9 +15,11 @@ The USB serial protocol was reverse-engineered from the proprietary NEEWER Contr
 ## Features
 
 - **Menubar app** — lives in the macOS menu bar, click to open a dropdown panel
-- **Brightness control** — 0-100% via slider
-- **Color temperature** — 2900K (warm) to 7000K (cool) via slider
-- **Presets** — save up to 5 custom presets with names
+- **Live preview** — shows the light's color and brightness in real time
+- **Brightness control** — vertical slider with gamma correction for perceptual linearity
+- **Color temperature** — 2900K (warm) to 7000K (cool) vertical slider
+- **Power button** — on/off with connection status indicator (glows when on, red when disconnected)
+- **Presets** — save up to 4 presets as color swatches, click to apply
 - **Live feedback** — UI updates when you turn the physical knob on the light
 - **Auto-connect** — detects the light on USB plug/unplug
 - **Remembers state** — persists brightness, temperature, and presets across restarts
@@ -170,4 +172,5 @@ MIT
 
 - Protocol decoded by disassembling the NEEWER Control Center app binary using `otool`
 - BLE protocol research by the [NeewerLite](https://github.com/keefo/NeewerLite) and [NeewerLite-Python](https://github.com/taburineagle/NeewerLite-Python) communities
+- Icons from [Lucide](https://lucide.dev/) (ISC license)
 - Built with [Tauri](https://tauri.app/), [Svelte](https://svelte.dev/), and [serialport-rs](https://github.com/serialport/serialport-rs)
