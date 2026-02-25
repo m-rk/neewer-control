@@ -299,6 +299,8 @@
     margin: 0;
     padding: 0;
     background: transparent;
+    border-radius: 12px;
+    overflow: hidden;
   }
 
   :global(body) {
@@ -313,24 +315,12 @@
     background: rgba(30, 30, 30, 0.95);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     padding: 16px;
     padding-top: 24px;
     display: flex;
     flex-direction: column;
-  }
-
-  .panel::before {
-    content: "";
-    position: absolute;
-    top: -6px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 12px;
-    height: 6px;
-    background: rgba(30, 30, 30, 0.95);
-    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+    overflow: hidden;
   }
 
   /* Layout */
