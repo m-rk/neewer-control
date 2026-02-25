@@ -153,6 +153,25 @@
     sendTimer = setTimeout(() => sendLight(), 30);
   }
 
+  // When sliders move, auto-turn on if needed
+  function handleSliderInput() {
+    if (!isOn) {
+      isOn = true;
+    }
+    throttledSend();
+  }
+
+  // Light preview color based on kelvin
+  let previewColor = $derived.by(() => {
+    const t = (kelvin - TEMP_MIN) / (TEMP_MAX - TEMP_MIN);
+    const r = Math.round(255 - t * 50);
+    const g = Math.round(180 + t * 50);
+    const b = Math.round(100 + t * 155);
+    return `rgba(${r}, ${g}, ${b}, 0.9)`;
+  });
+
+  let previewOpacity = $derived(0.3 + (brightness / 100) * 0.7);
+
   onMount(async () => {
     await loadState();
     await checkConnection();
@@ -206,11 +225,25 @@
     </span>
   </div>
 
+  <!-- Light preview -->
+  <div class="preview" class:off={!isOn}>
+    <div
+      class="preview-glow"
+      style="background: radial-gradient(ellipse at center, {previewColor} 0%, transparent 70%); opacity: {isOn ? previewOpacity : 0};"
+    ></div>
+  </div>
+
   <!-- Power toggle -->
   <div class="row">
     <span class="label">Power</span>
-    <button class="power-btn" class:on={isOn} onclick={togglePower}>
-      {isOn ? "ON" : "OFF"}
+    <button
+      class="toggle-switch"
+      class:on={isOn}
+      onclick={togglePower}
+      role="switch"
+      aria-checked={isOn}
+    >
+      <span class="toggle-knob"></span>
     </button>
   </div>
 
@@ -218,7 +251,7 @@
   <div class="control">
     <div class="control-header">
       <span class="label">Brightness</span>
-      <span class="value">{isOn ? brightness : 0}%</span>
+      <span class="value">{brightness}%</span>
     </div>
     <input
       type="range"
@@ -226,8 +259,7 @@
       max="100"
       step="1"
       bind:value={brightness}
-      oninput={throttledSend}
-      disabled={!isOn}
+      oninput={handleSliderInput}
       class="slider brightness-slider"
     />
   </div>
@@ -244,8 +276,7 @@
       max={TEMP_MAX}
       step={TEMP_STEP}
       bind:value={kelvin}
-      oninput={throttledSend}
-      disabled={!isOn}
+      oninput={handleSliderInput}
       class="slider temp-slider"
     />
     <div class="temp-labels">
@@ -379,26 +410,54 @@
     color: #ccc;
   }
 
-  .power-btn {
-    padding: 4px 16px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.05);
-    color: #999;
-    font-size: 12px;
-    font-weight: 600;
+  .preview {
+    height: 48px;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    background: rgba(255, 255, 255, 0.03);
+    transition: background 0.3s;
+  }
+
+  .preview.off {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .preview-glow {
+    position: absolute;
+    inset: -20px -40px;
+    transition: opacity 0.3s;
+  }
+
+  .toggle-switch {
+    position: relative;
+    width: 40px;
+    height: 24px;
+    border-radius: 12px;
+    border: none;
+    background: rgba(255, 255, 255, 0.15);
     cursor: pointer;
-    transition: all 0.15s;
+    padding: 2px;
+    transition: background 0.2s;
   }
 
-  .power-btn.on {
-    background: rgba(52, 199, 89, 0.2);
-    border-color: rgba(52, 199, 89, 0.4);
-    color: #34c759;
+  .toggle-switch.on {
+    background: #34c759;
   }
 
-  .power-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+  .toggle-knob {
+    display: block;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s;
+    pointer-events: none;
+  }
+
+  .toggle-switch.on .toggle-knob {
+    transform: translateX(16px);
   }
 
   .control {
@@ -456,15 +515,6 @@
 
   .slider::-webkit-slider-thumb:active {
     box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.2), 0 1px 4px rgba(0, 0, 0, 0.4);
-  }
-
-  .slider:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-
-  .slider:disabled::-webkit-slider-thumb {
-    cursor: not-allowed;
   }
 
   .temp-labels {
