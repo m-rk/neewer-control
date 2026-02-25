@@ -7,18 +7,25 @@
 
   const TEMP_MIN = 2900;
   const TEMP_MAX = 7000;
-  const TEMP_STEP = 205; // divides evenly into 4100 (20 steps)
-  const BRI_STEP = 5;
+  const TEMP_STEP = 205;
   const BRI_GAMMA = 2.0;
 
-  // Gamma: slider (perceptual) → hardware brightness
   function sliderToHw(slider: number): number {
     return Math.round(Math.pow(slider / 100, BRI_GAMMA) * 100);
   }
 
-  // Inverse gamma: hardware brightness → slider (perceptual)
   function hwToSlider(hw: number): number {
     return Math.round(Math.pow(hw / 100, 1 / BRI_GAMMA) * 100);
+  }
+
+  function kelvinToColor(k: number, alpha = 1): string {
+    const t = (k - TEMP_MIN) / (TEMP_MAX - TEMP_MIN);
+    const r = Math.round(255 - t * 15);
+    const g = Math.round(210 + t * 40);
+    const b = Math.round(140 + t * 115);
+    return alpha < 1
+      ? `rgba(${r}, ${g}, ${b}, ${alpha})`
+      : `rgb(${r}, ${g}, ${b})`;
   }
 
   let brightness = $state(100);
@@ -28,7 +35,6 @@
   let store: Store | null = $state(null);
   let suppressEcho = $state(false);
 
-  // Preset type
   interface Preset {
     name: string;
     brightness: number;
@@ -36,12 +42,13 @@
   }
   let presets: Preset[] = $state([]);
 
-  // Editing state
-  let editingIndex: number | null = $state(null);
-  let editName = $state("");
-
-  // Track "last on" brightness for toggle
   let lastOnBrightness = $state(100);
+
+  let previewColor = $derived(kelvinToColor(kelvin));
+  let hwBrightness = $derived(sliderToHw(brightness) / 100);
+  let previewOpacity = $derived(0.4 + hwBrightness * 0.6);
+  let glowSpread = $derived(Math.round(20 + hwBrightness * 60));
+  let glowOpacity = $derived(hwBrightness * 0.8);
 
   async function sendLight() {
     if (!connected) return;
@@ -52,7 +59,6 @@
     } catch (e) {
       console.error("set_light failed:", e);
     }
-    // Clear echo suppression after a short window
     setTimeout(() => (suppressEcho = false), 600);
     await saveState();
   }
@@ -85,17 +91,6 @@
     sendLight();
   }
 
-  function changeBrightness(delta: number) {
-    brightness = Math.max(0, Math.min(100, brightness + delta));
-    if (!isOn && brightness > 0) isOn = true;
-    sendLight();
-  }
-
-  function changeTemp(delta: number) {
-    kelvin = Math.max(TEMP_MIN, Math.min(TEMP_MAX, kelvin + delta));
-    sendLight();
-  }
-
   function applyPreset(p: Preset) {
     brightness = p.brightness;
     kelvin = p.kelvin;
@@ -104,7 +99,7 @@
   }
 
   function saveCurrentAsPreset() {
-    if (presets.length >= 5) return;
+    if (presets.length >= 4) return;
     presets = [
       ...presets,
       { name: `Preset ${presets.length + 1}`, brightness, kelvin },
@@ -112,34 +107,9 @@
     saveState();
   }
 
-  function updatePreset(index: number) {
-    presets[index] = { ...presets[index], brightness, kelvin };
-    presets = [...presets];
-    saveState();
-  }
-
   function deletePreset(index: number) {
     presets = presets.filter((_, i) => i !== index);
-    editingIndex = null;
     saveState();
-  }
-
-  function startEditing(index: number) {
-    editingIndex = index;
-    editName = presets[index].name;
-  }
-
-  function finishEditing() {
-    if (editingIndex !== null && editName.trim()) {
-      presets[editingIndex] = { ...presets[editingIndex], name: editName.trim() };
-      presets = [...presets]; // trigger reactivity
-      saveState();
-    }
-    editingIndex = null;
-  }
-
-  async function quitApp() {
-    await invoke("quit_app");
   }
 
   async function checkConnection() {
@@ -157,14 +127,12 @@
     }
   }
 
-  // Throttle slider sends
   let sendTimer: ReturnType<typeof setTimeout> | null = null;
   function throttledSend() {
     if (sendTimer) clearTimeout(sendTimer);
     sendTimer = setTimeout(() => sendLight(), 30);
   }
 
-  // When sliders move, auto-turn on if needed
   function handleSliderInput() {
     if (!isOn) {
       isOn = true;
@@ -172,25 +140,12 @@
     throttledSend();
   }
 
-  // Light preview color based on kelvin
-  let previewColor = $derived.by(() => {
-    const t = (kelvin - TEMP_MIN) / (TEMP_MAX - TEMP_MIN);
-    const r = Math.round(255 - t * 50);
-    const g = Math.round(180 + t * 50);
-    const b = Math.round(100 + t * 155);
-    return `rgba(${r}, ${g}, ${b}, 0.9)`;
-  });
-
-  let previewOpacity = $derived(0.3 + (sliderToHw(brightness) / 100) * 0.7);
-
   onMount(async () => {
     await loadState();
     await checkConnection();
 
-    // Send initial state to light
     if (connected) sendLight();
 
-    // Listen for status packets from physical knob
     await listen<{ brightness: number; kelvin: number }>(
       "light-status",
       (event) => {
@@ -203,10 +158,8 @@
       }
     );
 
-    // Listen for disconnection
     await listen("serial-disconnected", () => {
       connected = false;
-      // Try to reconnect periodically
       const interval = setInterval(async () => {
         await checkConnection();
         if (connected) {
@@ -216,124 +169,127 @@
       }, 2000);
     });
 
-    // Hide panel when it loses focus
     const appWindow = getCurrentWebviewWindow();
     appWindow.onFocusChanged(({ payload: focused }) => {
       if (!focused) appWindow.hide();
     });
 
-    // Periodically check connection (handles USB plug/unplug)
     setInterval(checkConnection, 5000);
   });
 </script>
 
 <div class="panel" role="application">
-  <!-- Header -->
-  <div class="header">
-    <span class="title">Neewer USB Control</span>
-    <span class="status" class:online={connected}>
-      {connected ? "Connected" : "Disconnected"}
-    </span>
-  </div>
-
-  <!-- Light preview -->
-  <div class="preview" class:off={!isOn}>
-    <div
-      class="preview-glow"
-      style="background: radial-gradient(ellipse at center, {previewColor} 0%, transparent 70%); opacity: {isOn ? previewOpacity : 0};"
-    ></div>
-  </div>
-
-  <!-- Power toggle -->
-  <div class="row">
-    <span class="label">Power</span>
-    <button
-      class="toggle-switch"
-      class:on={isOn}
-      onclick={togglePower}
-      role="switch"
-      aria-checked={isOn}
-    >
-      <span class="toggle-knob"></span>
-    </button>
-  </div>
-
-  <!-- Brightness -->
-  <div class="control">
-    <div class="control-header">
-      <span class="label">Brightness</span>
-      <span class="value">{brightness}%</span>
+  <div class="main-area">
+    <!-- Brightness slider (left) -->
+    <div class="slider-col">
+      <!-- Lucide: sun (filled center) -->
+      <svg class="slider-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+      </svg>
+      <input
+        type="range"
+        min="0"
+        max="100"
+        step="1"
+        bind:value={brightness}
+        oninput={handleSliderInput}
+        class="vslider brightness-slider"
+        orient="vertical"
+      />
+      <!-- Lucide: sun-medium (shorter rays = dimmer) -->
+      <svg class="slider-icon dim" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="4"/><path d="M12 3v1"/><path d="M12 20v1"/><path d="M3 12h1"/><path d="M20 12h1"/><path d="m18.364 5.636-.707.707"/><path d="m6.343 17.657-.707.707"/><path d="m5.636 5.636.707.707"/><path d="m17.657 17.657.707.707"/>
+      </svg>
     </div>
-    <input
-      type="range"
-      min="0"
-      max="100"
-      step="1"
-      bind:value={brightness}
-      oninput={handleSliderInput}
-      class="slider brightness-slider"
-    />
-  </div>
 
-  <!-- Temperature -->
-  <div class="control">
-    <div class="control-header">
-      <span class="label">Temperature</span>
-      <span class="value">{kelvin}K</span>
-    </div>
-    <input
-      type="range"
-      min={TEMP_MIN}
-      max={TEMP_MAX}
-      step={TEMP_STEP}
-      bind:value={kelvin}
-      oninput={handleSliderInput}
-      class="slider temp-slider"
-    />
-    <div class="temp-labels">
-      <span>Warm</span>
-      <span>Cool</span>
-    </div>
-  </div>
+    <!-- Center: preview + power + presets -->
+    <div class="center-col">
+      <div class="preview" class:off={!isOn} style="box-shadow: 0 0 {isOn ? glowSpread : 0}px {Math.round((isOn ? glowSpread : 0) / 3)}px {kelvinToColor(kelvin, isOn ? glowOpacity : 0)};">
+        <div
+          class="preview-core"
+          style="background: radial-gradient(ellipse at center, #fff 0%, {previewColor} 40%, transparent 70%); opacity: {isOn ? previewOpacity : 0};"
+        ></div>
+        <div
+          class="preview-bloom"
+          style="background: radial-gradient(ellipse at center, {previewColor} 0%, transparent 60%); opacity: {isOn ? glowOpacity : 0};"
+        ></div>
+        <div
+          class="preview-edge"
+          style="box-shadow: inset 0 0 {glowSpread}px {previewColor}; opacity: {isOn ? glowOpacity : 0};"
+        ></div>
+      </div>
 
-  <!-- Presets -->
-  <div class="presets-section">
-    <div class="presets-header">
-      <span class="label">Presets</span>
-      {#if presets.length < 5}
-        <button class="save-btn" onclick={saveCurrentAsPreset}>+ Save current</button>
-      {/if}
-    </div>
-    <div class="presets-grid">
-      {#each presets as preset, i}
-        <div class="preset-item">
-          {#if editingIndex === i}
-            <input
-              class="preset-name-input"
-              type="text"
-              bind:value={editName}
-              onkeydown={(e: KeyboardEvent) => e.key === "Enter" && finishEditing()}
-              onblur={finishEditing}
-            />
-          {:else}
-            <button class="preset-btn" onclick={() => applyPreset(preset)} ondblclick={() => startEditing(i)}>
-              <span class="preset-name">{preset.name}</span>
-              <span class="preset-detail">{preset.brightness}% &middot; {preset.kelvin}K</span>
-            </button>
-            <div class="preset-actions">
-              <button class="icon-btn" onclick={() => updatePreset(i)} title="Update to current values">&#8631;</button>
-              <button class="icon-btn" onclick={() => deletePreset(i)} title="Delete">&times;</button>
-            </div>
-          {/if}
-        </div>
-      {/each}
-    </div>
-  </div>
+      <button
+        class="power-btn"
+        class:on={isOn}
+        class:disconnected={!connected}
+        onclick={togglePower}
+        aria-label="Power"
+        style="background: rgba(30, 30, 30, 0.95); box-shadow: 0 0 {isOn ? Math.round(10 + hwBrightness * 20) : 0}px {kelvinToColor(kelvin, isOn ? 0.3 + hwBrightness * 0.4 : 0)};"
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="{isOn ? `filter: drop-shadow(0 0 4px currentColor);` : ''}">
+          <path d="M12 3v8"/>
+          <path d="M18.36 6.64A9 9 0 1 1 5.64 6.64"/>
+        </svg>
+      </button>
 
-  <!-- Footer -->
-  <div class="footer">
-    <button class="footer-btn" disabled title="Settings">&#9881;</button>
-    <button class="footer-btn quit-btn" onclick={quitApp}>Quit</button>
+      <div class="presets-row">
+        {#each presets as preset, i}
+          <div
+            class="preset-swatch"
+            onclick={() => applyPreset(preset)}
+            onkeydown={(e: KeyboardEvent) => e.key === "Enter" && applyPreset(preset)}
+            role="button"
+            tabindex="0"
+            title="{preset.brightness}% · {preset.kelvin}K"
+            style="box-shadow: 0 0 {Math.round(4 + (sliderToHw(preset.brightness) / 100) * 8)}px {kelvinToColor(preset.kelvin, (sliderToHw(preset.brightness) / 100) * 0.5)};"
+          >
+            <div
+              class="swatch-core"
+              style="background: radial-gradient(ellipse at center, #fff 0%, {kelvinToColor(preset.kelvin)} 50%, transparent 80%); opacity: {0.4 + (sliderToHw(preset.brightness) / 100) * 0.6};"
+            ></div>
+            <div
+              class="swatch-glow"
+              style="box-shadow: inset 0 0 {Math.round(8 + (sliderToHw(preset.brightness) / 100) * 20)}px {kelvinToColor(preset.kelvin)}; opacity: {(sliderToHw(preset.brightness) / 100) * 0.8};"
+            ></div>
+            <button
+              class="swatch-delete"
+              onclick={(e: MouseEvent) => { e.stopPropagation(); deletePreset(i); }}
+              aria-label="Delete preset"
+            >&times;</button>
+          </div>
+        {/each}
+        {#if presets.length < 4}
+          <button class="preset-add" onclick={saveCurrentAsPreset} aria-label="Save preset">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+          </button>
+        {/if}
+      </div>
+    </div>
+
+    <!-- Temperature slider (right) -->
+    <div class="slider-col">
+      <!-- Lucide: snowflake -->
+      <svg class="slider-icon cool" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m10 20-1.25-2.5L6 18"/><path d="M10 4 8.75 6.5 6 6"/><path d="m14 20 1.25-2.5L18 18"/><path d="m14 4 1.25 2.5L18 6"/><path d="m17 21-3-6h-4"/><path d="m17 3-3 6 1.5 3"/><path d="M2 12h6.5L10 9"/><path d="m20 10-1.5 2 1.5 2"/><path d="M22 12h-6.5L14 15"/><path d="m4 10 1.5 2L4 14"/><path d="m7 21 3-6-1.5-3"/><path d="m7 3 3 6h4"/>
+      </svg>
+      <input
+        type="range"
+        min={TEMP_MIN}
+        max={TEMP_MAX}
+        step={TEMP_STEP}
+        bind:value={kelvin}
+        oninput={handleSliderInput}
+        class="vslider temp-slider"
+        orient="vertical"
+      />
+      <!-- Lucide: flame -->
+      <svg class="slider-icon warm" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4"/>
+      </svg>
+    </div>
   </div>
 </div>
 
@@ -363,7 +319,6 @@
     padding-top: 24px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
   }
 
   .panel::before {
@@ -378,292 +333,245 @@
     clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
   }
 
-  .header {
+  /* Layout */
+  .main-area {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    gap: 12px;
+    align-items: stretch;
   }
 
-  .title {
-    font-weight: 600;
-    font-size: 14px;
-    color: #fff;
-  }
-
-  .status {
-    font-size: 11px;
-    color: #888;
+  .slider-col {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
+    flex-shrink: 0;
+    width: 32px;
   }
 
-  .status::before {
-    content: "";
-    width: 6px;
-    height: 6px;
+  .center-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Slider icons */
+  .slider-icon {
+    color: rgba(255, 255, 255, 0.6);
+    flex-shrink: 0;
+  }
+
+  .slider-icon.dim {
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .slider-icon.cool {
+    color: #a8c4ff;
+  }
+
+  .slider-icon.warm {
+    color: #ff9329;
+  }
+
+  /* Vertical sliders */
+  .vslider {
+    -webkit-appearance: slider-vertical;
+    appearance: slider-vertical;
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 8px;
+    flex: 1;
+    min-height: 0;
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  .brightness-slider {
+    background: linear-gradient(to top, #222, #fff);
+  }
+
+  .temp-slider {
+    background: linear-gradient(to top, #ff9329, #fff, #a8c4ff);
+  }
+
+  .vslider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
-    background: #666;
+    background: #fff;
+    border: 2px solid rgba(0, 0, 0, 0.3);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+    transition: box-shadow 0.15s;
   }
 
-  .status.online::before {
-    background: #34c759;
+  .vslider::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.15), 0 1px 4px rgba(0, 0, 0, 0.4);
   }
 
-  .row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  .vslider::-webkit-slider-thumb:active {
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.2), 0 1px 4px rgba(0, 0, 0, 0.4);
   }
 
-  .label {
-    font-weight: 500;
-    color: #ccc;
-  }
-
+  /* Preview */
   .preview {
-    height: 48px;
-    border-radius: 8px;
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 10px;
     overflow: hidden;
     position: relative;
     background: rgba(255, 255, 255, 0.03);
-    transition: background 0.3s;
+    transition: background 0.3s, box-shadow 0.3s;
   }
 
   .preview.off {
     background: rgba(255, 255, 255, 0.02);
   }
 
-  .preview-glow {
+  .preview-core {
     position: absolute;
-    inset: -20px -40px;
+    inset: -20%;
     transition: opacity 0.3s;
   }
 
-  .toggle-switch {
+  .preview-bloom {
+    position: absolute;
+    inset: -50%;
+    transition: opacity 0.3s;
+  }
+
+  .preview-edge {
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    transition: opacity 0.3s;
+  }
+
+  /* Power button */
+  .power-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.35);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    margin-top: -26px;
     position: relative;
-    width: 40px;
-    height: 24px;
-    border-radius: 12px;
-    border: none;
-    background: rgba(255, 255, 255, 0.15);
-    cursor: pointer;
-    padding: 2px;
-    transition: background 0.2s;
+    z-index: 1;
   }
 
-  .toggle-switch.on {
-    background: #34c759;
+  .power-btn.on {
+    color: rgba(255, 255, 255, 0.9);
+    border-color: rgba(255, 255, 255, 0.2);
   }
 
-  .toggle-knob {
-    display: block;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-    transition: transform 0.2s;
-    pointer-events: none;
+  .power-btn.disconnected {
+    color: #ff453a;
+    border-color: rgba(255, 69, 58, 0.3);
   }
 
-  .toggle-switch.on .toggle-knob {
-    transform: translateX(16px);
+  .power-btn:hover {
+    border-color: rgba(255, 255, 255, 0.3);
   }
 
-  .control {
+  /* Presets row */
+  .presets-row {
     display: flex;
-    flex-direction: column;
     gap: 6px;
-  }
-
-  .control-header {
-    display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
   }
 
-  .value {
-    font-variant-numeric: tabular-nums;
-    color: #fff;
-    font-weight: 500;
-  }
-
-  .slider {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 100%;
-    height: 8px;
-    border-radius: 4px;
-    outline: none;
+  .preset-swatch {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.3);
     cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    padding: 0;
+    transition: border-color 0.15s;
   }
 
-  .brightness-slider {
-    background: linear-gradient(to right, #333, #fff);
+  .preset-swatch:hover {
+    border-color: rgba(255, 255, 255, 0.3);
   }
 
-  .temp-slider {
-    background: linear-gradient(to right, #ff9329, #fff, #a8c4ff);
+  .swatch-core {
+    position: absolute;
+    inset: -40%;
+    transition: opacity 0.15s;
   }
 
-  .slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #fff;
-    border: 2px solid rgba(0, 0, 0, 0.4);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-    cursor: pointer;
-    transition: box-shadow 0.15s;
+  .swatch-glow {
+    position: absolute;
+    inset: 0;
+    border-radius: 5px;
+    transition: opacity 0.15s;
   }
 
-  .slider::-webkit-slider-thumb:hover {
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.15), 0 1px 4px rgba(0, 0, 0, 0.4);
-  }
-
-  .slider::-webkit-slider-thumb:active {
-    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.2), 0 1px 4px rgba(0, 0, 0, 0.4);
-  }
-
-  .temp-labels {
-    display: flex;
-    justify-content: space-between;
-    font-size: 10px;
-    color: #666;
-    margin-top: -2px;
-  }
-
-  .presets-section {
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    padding-top: 12px;
-  }
-
-  .presets-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-  }
-
-  .save-btn {
-    font-size: 11px;
-    color: #0a84ff;
-    background: none;
+  .swatch-delete {
+    position: absolute;
+    top: -1px;
+    right: 0px;
+    width: 16px;
+    height: 16px;
+    border-radius: 0 5px 0 4px;
     border: none;
+    background: rgba(0, 0, 0, 0.7);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 11px;
+    line-height: 1;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s;
+    padding: 0;
+    z-index: 1;
+  }
+
+  .preset-swatch:hover .swatch-delete {
+    opacity: 1;
+  }
+
+  .swatch-delete:hover {
+    background: rgba(255, 69, 58, 0.8);
+    color: #fff;
+  }
+
+  .preset-add {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+    background: none;
+    color: rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
     padding: 0;
   }
 
-  .save-btn:hover {
-    text-decoration: underline;
-  }
-
-  .presets-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .preset-item {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .preset-btn {
-    flex: 1;
-    padding: 6px 10px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
+  .preset-add:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.6);
     background: rgba(255, 255, 255, 0.05);
-    color: #ddd;
-    font-size: 12px;
-    cursor: pointer;
-    text-align: left;
-    transition: background 0.15s;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  .preset-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .preset-name {
-    line-height: 1.3;
-  }
-
-  .preset-detail {
-    font-size: 10px;
-    color: #777;
-    line-height: 1.2;
-  }
-
-  .preset-actions {
-    display: flex;
-    gap: 2px;
-  }
-
-  .icon-btn {
-    background: none;
-    border: none;
-    color: #666;
-    cursor: pointer;
-    font-size: 14px;
-    padding: 2px 4px;
-    line-height: 1;
-  }
-
-  .icon-btn:hover {
-    color: #ccc;
-  }
-
-  .preset-name-input {
-    flex: 1;
-    padding: 5px 8px;
-    border: 1px solid rgba(10, 132, 255, 0.5);
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
-    font-size: 12px;
-    outline: none;
-  }
-
-  .footer {
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    padding-top: 10px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .footer-btn {
-    background: none;
-    border: none;
-    color: #777;
-    cursor: pointer;
-    font-size: 12px;
-    padding: 2px 4px;
-  }
-
-  .footer-btn:disabled {
-    color: #444;
-    cursor: default;
-  }
-
-  .footer-btn:not(:disabled):hover {
-    color: #ccc;
-  }
-
-  .quit-btn {
-    color: #999;
-  }
-
-  .quit-btn:hover {
-    color: #ff453a;
   }
 </style>
