@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    neewer_control_lib::run()
+    neewer_usb_control_lib::run()
 }

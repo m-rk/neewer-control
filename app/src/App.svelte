@@ -200,7 +200,7 @@
 <div class="panel" role="application">
   <!-- Header -->
   <div class="header">
-    <span class="title">NeewerControl</span>
+    <span class="title">Neewer USB Control</span>
     <span class="status" class:online={connected}>
       {connected ? "Connected" : "Disconnected"}
     </span>

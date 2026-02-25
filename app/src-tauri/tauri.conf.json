@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicoretti/tauri-conf/refs/heads/main/schema/2.0.0-rc.json",
-  "productName": "NeewerControl",
-  "identifier": "com.neewer-control.desktop",
+  "productName": "Neewer USB Control",
+  "identifier": "com.neewer-usb-control.desktop",
   "version": "0.1.0",
   "build": {
     "frontendDist": "../dist",

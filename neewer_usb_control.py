@@ -7,18 +7,18 @@ Protocol reverse-engineered from the NEEWER Control Center app binary.
 PL81-Pro is a bi-color (CCT-only) panel — no RGB/HSI support.
 
 Usage:
-    python3 neewer_control.py <brightness> [temperature_K]
-    python3 neewer_control.py on
-    python3 neewer_control.py off
-    python3 neewer_control.py status
+    python3 neewer_usb_control.py <brightness> [temperature_K]
+    python3 neewer_usb_control.py on
+    python3 neewer_usb_control.py off
+    python3 neewer_usb_control.py status
 
 Examples:
-    python3 neewer_control.py 100           # 100% brightness, default 4950K
-    python3 neewer_control.py 100 2900      # 100%, warmest
-    python3 neewer_control.py 100 7000      # 100%, coolest
-    python3 neewer_control.py 50 4000       # 50%, warm white
-    python3 neewer_control.py off           # brightness 0
-    python3 neewer_control.py status        # read current state
+    python3 neewer_usb_control.py 100           # 100% brightness, default 4950K
+    python3 neewer_usb_control.py 100 2900      # 100%, warmest
+    python3 neewer_usb_control.py 100 7000      # 100%, coolest
+    python3 neewer_usb_control.py 50 4000       # 50%, warm white
+    python3 neewer_usb_control.py off           # brightness 0
+    python3 neewer_usb_control.py status        # read current state
 """
 
 import serial
@@ -103,10 +103,10 @@ def read_status(ser, timeout=3.0):
 def main():
     if len(sys.argv) < 2:
         print("Usage:")
-        print("  neewer_control.py <brightness> [temperature_K]")
-        print("  neewer_control.py on")
-        print("  neewer_control.py off")
-        print("  neewer_control.py status")
+        print("  neewer_usb_control.py <brightness> [temperature_K]")
+        print("  neewer_usb_control.py on")
+        print("  neewer_usb_control.py off")
+        print("  neewer_usb_control.py status")
         print()
         print(f"  Temperature: {TEMP_MIN_K}K–{TEMP_MAX_K}K (default {DEFAULT_TEMP_K}K)")
         sys.exit(1)

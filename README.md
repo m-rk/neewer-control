@@ -1,4 +1,4 @@
-# NeewerControl
+# Neewer USB Control
 
 USB control for Neewer LED panel lights on macOS. Includes a menubar GUI app and a Python CLI.
 
@@ -9,7 +9,7 @@ The USB serial protocol was reverse-engineered from the proprietary NEEWER Contr
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 <p align="center">
-  <img src="screenshot.png" width="280" alt="NeewerControl menubar panel">
+  <img src="screenshot.png" width="280" alt="Neewer USB Control menubar panel">
 </p>
 
 ## Features
@@ -36,13 +36,13 @@ The USB serial protocol was reverse-engineered from the proprietary NEEWER Contr
 You'll need [Rust](https://rustup.rs/), [Node.js](https://nodejs.org/), and [pnpm](https://pnpm.io/):
 
 ```bash
-git clone https://github.com/m-rk/neewer-control.git
-cd neewer-control/app
+git clone https://github.com/m-rk/neewer-usb-control.git
+cd neewer-usb-control/app
 pnpm install
 pnpm tauri build
 ```
 
-The built app is at `app/src-tauri/target/release/bundle/macos/NeewerControl.app`. Drag it to your Applications folder.
+The built app is at `app/src-tauri/target/release/bundle/macos/Neewer USB Control.app`. Drag it to your Applications folder.
 
 > **First launch:** macOS will block the app since it's ad-hoc signed. Go to System Settings → Privacy & Security and click "Open Anyway". This only happens once.
 
@@ -67,17 +67,17 @@ pip install pyserial
 
 ```bash
 # Set brightness and color temperature
-python3 neewer_control.py 100           # 100% brightness, default 4950K
-python3 neewer_control.py 100 2900      # 100% brightness, warmest
-python3 neewer_control.py 100 7000      # 100% brightness, coolest
-python3 neewer_control.py 50 4000       # 50% brightness, warm white
+python3 neewer_usb_control.py 100           # 100% brightness, default 4950K
+python3 neewer_usb_control.py 100 2900      # 100% brightness, warmest
+python3 neewer_usb_control.py 100 7000      # 100% brightness, coolest
+python3 neewer_usb_control.py 50 4000       # 50% brightness, warm white
 
 # Power shortcuts
-python3 neewer_control.py on            # 100% at default temp
-python3 neewer_control.py off           # brightness 0
+python3 neewer_usb_control.py on            # 100% at default temp
+python3 neewer_usb_control.py off           # brightness 0
 
 # Read status (turn the physical knob to see updates)
-python3 neewer_control.py status
+python3 neewer_usb_control.py status
 ```
 
 Temperature range is 2900K–7000K in 19 discrete steps (~228K each).
@@ -102,7 +102,7 @@ For the full reverse-engineering journey, protocol details, BLE protocol compari
 ## Project Structure
 
 ```
-neewer-control/
+neewer-usb-control/
 ├── app/                        # Tauri menubar app (Svelte + Rust)
 │   ├── src/                    # Frontend (Svelte + TypeScript)
 │   └── src-tauri/src/          # Backend (Rust)
@@ -110,7 +110,7 @@ neewer-control/
 │       ├── serial.rs           # Serial port management + read loop
 │       ├── commands.rs         # Tauri commands exposed to frontend
 │       └── lib.rs              # App setup, tray icon, auto-connect
-├── neewer_control.py           # Python CLI
+├── neewer_usb_control.py       # Python CLI
 ├── temp_calibrate.py           # Interactive temperature calibration tool
 ├── temp_calibration.json       # Calibration results (19 steps mapped)
 └── RESEARCH.md                 # Full protocol documentation
@@ -142,8 +142,8 @@ Contributions are welcome — especially:
 
 ```bash
 # Clone
-git clone https://github.com/m-rk/neewer-control.git
-cd neewer-control
+git clone https://github.com/m-rk/neewer-usb-control.git
+cd neewer-usb-control
 
 # GUI app
 cd app

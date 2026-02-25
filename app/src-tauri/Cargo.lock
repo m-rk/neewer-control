@@ -1894,7 +1894,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "neewer-control"
+name = "neewer-usb-control"
 version = "0.1.0"
 dependencies = [
  "serde",
