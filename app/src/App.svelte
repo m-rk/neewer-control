@@ -9,6 +9,17 @@
   const TEMP_MAX = 7000;
   const TEMP_STEP = 205; // divides evenly into 4100 (20 steps)
   const BRI_STEP = 5;
+  const BRI_GAMMA = 2.0;
+
+  // Gamma: slider (perceptual) → hardware brightness
+  function sliderToHw(slider: number): number {
+    return Math.round(Math.pow(slider / 100, BRI_GAMMA) * 100);
+  }
+
+  // Inverse gamma: hardware brightness → slider (perceptual)
+  function hwToSlider(hw: number): number {
+    return Math.round(Math.pow(hw / 100, 1 / BRI_GAMMA) * 100);
+  }
 
   let brightness = $state(100);
   let kelvin = $state(4950);
@@ -34,7 +45,7 @@
 
   async function sendLight() {
     if (!connected) return;
-    const bri = isOn ? brightness : 0;
+    const bri = isOn ? sliderToHw(brightness) : 0;
     suppressEcho = true;
     try {
       await invoke("set_light", { brightness: bri, kelvin });
@@ -170,7 +181,7 @@
     return `rgba(${r}, ${g}, ${b}, 0.9)`;
   });
 
-  let previewOpacity = $derived(0.3 + (brightness / 100) * 0.7);
+  let previewOpacity = $derived(0.3 + (sliderToHw(brightness) / 100) * 0.7);
 
   onMount(async () => {
     await loadState();
@@ -184,9 +195,9 @@
       "light-status",
       (event) => {
         if (suppressEcho) return;
-        brightness = event.payload.brightness;
+        brightness = hwToSlider(event.payload.brightness);
         kelvin = event.payload.kelvin;
-        isOn = brightness > 0;
+        isOn = event.payload.brightness > 0;
         if (brightness > 0) lastOnBrightness = brightness;
         saveState();
       }
