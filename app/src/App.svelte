@@ -55,17 +55,17 @@
     presetKeys: string[];
   }
   let shortcutConfig: ShortcutConfig = $state({
-    modifiers: ["CommandOrControl", "Shift"],
+    modifiers: ["CommandOrControl", "Alt", "Shift"],
     toggleKey: "`",
     presetKeys: ["1", "2", "3", "4"],
   });
   let listeningFor: string | null = $state(null);
 
   const MODIFIER_OPTIONS = [
-    { id: "CommandOrControl", label: "Cmd" },
-    { id: "Shift", label: "Shift" },
-    { id: "Alt", label: "Opt" },
-    { id: "Control", label: "Ctrl" },
+    { id: "CommandOrControl", label: "\u2318 Cmd" },
+    { id: "Shift", label: "\u21E7 Shift" },
+    { id: "Alt", label: "\u2325 Opt" },
+    { id: "Control", label: "\u2303 Ctrl" },
   ];
 
   function buildShortcutString(key: string): string {
