@@ -204,7 +204,15 @@
 
     <!-- Center: preview + power + presets -->
     <div class="center-col">
-      <div class="preview" class:off={!isOn} style="box-shadow: 0 0 {isOn ? glowSpread : 0}px {Math.round((isOn ? glowSpread : 0) / 3)}px {kelvinToColor(kelvin, isOn ? glowOpacity : 0)};">
+      <div
+        class="preview"
+        class:off={!isOn}
+        onclick={togglePower}
+        role="button"
+        tabindex="0"
+        onkeydown={(e: KeyboardEvent) => e.key === "Enter" && togglePower()}
+        style="box-shadow: 0 0 {isOn ? glowSpread : 0}px {Math.round((isOn ? glowSpread : 0) / 3)}px {kelvinToColor(kelvin, isOn ? glowOpacity : 0)}; cursor: pointer;"
+      >
         <div
           class="preview-core"
           style="background: radial-gradient(ellipse at center, #fff 0%, {previewColor} 40%, transparent 70%); opacity: {isOn ? previewOpacity : 0};"
@@ -217,21 +225,18 @@
           class="preview-edge"
           style="box-shadow: inset 0 0 {glowSpread}px {previewColor}; opacity: {isOn ? glowOpacity : 0};"
         ></div>
+        <div
+          class="power-icon"
+          class:on={isOn}
+          class:disconnected={!connected}
+          style="box-shadow: 0 0 {isOn ? Math.round(10 + hwBrightness * 20) : 0}px {kelvinToColor(kelvin, isOn ? 0.3 + hwBrightness * 0.4 : 0)};"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="{isOn ? `filter: drop-shadow(0 0 4px currentColor);` : ''}">
+            <path d="M12 3v8"/>
+            <path d="M18.36 6.64A9 9 0 1 1 5.64 6.64"/>
+          </svg>
+        </div>
       </div>
-
-      <button
-        class="power-btn"
-        class:on={isOn}
-        class:disconnected={!connected}
-        onclick={togglePower}
-        aria-label="Power"
-        style="background: rgba(30, 30, 30, 0.95); box-shadow: 0 0 {isOn ? Math.round(10 + hwBrightness * 20) : 0}px {kelvinToColor(kelvin, isOn ? 0.3 + hwBrightness * 0.4 : 0)};"
-      >
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="{isOn ? `filter: drop-shadow(0 0 4px currentColor);` : ''}">
-          <path d="M12 3v8"/>
-          <path d="M18.36 6.64A9 9 0 1 1 5.64 6.64"/>
-        </svg>
-      </button>
 
       <div class="presets-row">
         {#each presets as preset, i}
@@ -444,35 +449,41 @@
     transition: opacity 0.3s;
   }
 
-  /* Power button */
-  .power-btn {
+  /* Power icon (centered in preview) */
+  .power-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid transparent;
+    background: rgba(30, 30, 30, 0.95);
     color: rgba(255, 255, 255, 0.35);
-    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.3s;
-    margin-top: -26px;
-    position: relative;
     z-index: 1;
   }
 
-  .power-btn.on {
+  .power-icon.on {
     color: rgba(255, 255, 255, 0.9);
     border-color: rgba(255, 255, 255, 0.2);
   }
 
-  .power-btn.disconnected {
+  .power-icon.disconnected {
     color: #ff453a;
     border-color: rgba(255, 69, 58, 0.3);
   }
 
-  .power-btn:hover {
+  .preview:hover .power-icon.on {
     border-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .preview:hover .power-icon:not(.on) {
+    box-shadow: 0 0 16px rgba(255, 255, 255, 0.3) !important;
   }
 
   /* Presets row */
@@ -481,6 +492,7 @@
     gap: 6px;
     justify-content: center;
     align-items: center;
+    min-height: 38px;
   }
 
   .preset-swatch {
